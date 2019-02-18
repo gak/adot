@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"io"
 	"os"
 	"os/user"
 	"path"
@@ -18,6 +20,9 @@ type ADot struct {
 
 	// The URL of the git repo that stores the tracked dotfiles.
 	GitRepo string
+
+	// The repo remote to push/pull.
+	GitRemote string
 
 	// The branch of the repo to track. Defaults to master.
 	GitBranch string
@@ -62,8 +67,20 @@ func (a *ADot) Service() error {
 
 	*/
 
-	a.Monitor()
-	a.EnsureClone()
+	//a.Monitor()
+	//a.EnsureClone()
+
+	return nil
+}
+
+func (a *ADot) Init() error {
+	if err := a.Clone(); err != nil {
+		return errors.Wrap(err, "clone")
+	}
+
+	if err := a.Load(); err != nil {
+		return errors.Wrap(err, "pull")
+	}
 
 	return nil
 }
@@ -130,6 +147,30 @@ func dirExists(s string) (bool, error) {
 	return false, nil
 }
 
+func copy(src, dst string) error {
+	fmt.Println("copy", src, dst)
+	return nil
+
+	from, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer from.Close()
+
+	to, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	defer to.Close()
+
+	_, err = io.Copy(to, from)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (a *ADot) OpenRepo() (*git.Repository, error) {
 	r, err := git.PlainOpen(a.GitPath)
 	if err != nil {
@@ -170,7 +211,10 @@ func (a *ADot) Pull() error {
 		return errors.Wrap(err, "worktree")
 	}
 
-	return w.Pull(&git.PullOptions{RemoteName: "origin"})
+	return w.Pull(&git.PullOptions{
+		RemoteName:    a.GitRemote,
+		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
+	})
 }
 
 func (a *ADot) Commit() error {
@@ -183,7 +227,24 @@ func (a *ADot) Push() error {
 
 // Load copies files from the repository to the home directory.
 func (a *ADot) Load() error {
+	// Bootstrap the inclusive files to know what to look for.
+	if err := a.LoadFile(".adot"); err != nil {
+		return err
+	}
 
+	err := a.Iterate(func(s string) error {
+		return a.LoadFile(s)
+	})
+	if err != nil {
+		return errors.Wrap(err, "iterate")
+	}
+
+	return nil
+}
+
+// TODO: Make a backup
+func (a *ADot) LoadFile(p string) error {
+	return copy(path.Join(a.GitPath, p), path.Join(expand("~"), p))
 }
 
 // Save copies files from the home directory to the repository.
