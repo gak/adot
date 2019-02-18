@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/pkg/errors"
+	"gopkg.in/src-d/go-git.v4"
 	"os"
 	"os/user"
 	"path"
@@ -16,21 +17,50 @@ type ADot struct {
 	ConfigPath string
 
 	// The URL of the git repo that stores the tracked dotfiles.
-	GitRepo    string
+	GitRepo string
 
 	// The branch of the repo to track. Defaults to master.
-	GitBranch  string
+	GitBranch string
 
 	// The check out path. Defaults to ~/.adot-git
-	GitPath    string
+	GitPath string
 
 	files []string
 }
 
-func (a *ADot) Run() error {
-	if err := a.Init(); err != nil {
-		return err
-	}
+func (a *ADot) Service() error {
+
+	/*
+
+	adot init
+
+	 - clone
+	 - if file exists, rename
+	 - copy file down
+
+	adot push
+
+	 - check repo state to be clean
+	 - iterate
+	   - if file is different to repo, copy to repo
+	 - if there are changes, commit, push
+	 - if there's a conflict do a pull rebase
+	 - otherwise let the user handle the conflict
+
+	adot pull
+
+	 - check repo state to be clean
+	 - git pull
+	 - iterate
+	   - if any files are different, backup/copy.
+
+	adot service
+
+	 - every 5 minutes
+	 - adot push
+	 - adot pull
+
+	*/
 
 	a.Monitor()
 	a.EnsureClone()
@@ -38,7 +68,7 @@ func (a *ADot) Run() error {
 	return nil
 }
 
-func (a *ADot) Init() error {
+func (a *ADot) Defaults() error {
 	if a.ScanPath == "" {
 		a.ScanPath = "~"
 	}
@@ -57,6 +87,10 @@ func (a *ADot) Init() error {
 		a.GitBranch = "master"
 	}
 
+	return nil
+}
+
+func (a *ADot) Iterate(fun func(string) error) error {
 	fp, err := os.Open(a.ConfigPath)
 	if err != nil {
 		return errors.Wrapf(err, "Could not open %v", a.ConfigPath)
@@ -64,9 +98,10 @@ func (a *ADot) Init() error {
 
 	scanner := bufio.NewScanner(fp)
 	for scanner.Scan() {
-		err := a.MonitorFile(scanner.Text())
+		file := scanner.Text()
+		err := fun(file)
 		if err != nil {
-			return errors.Wrapf(err, "adding file %v", err)
+			return errors.Wrap(err, file)
 		}
 	}
 
@@ -83,17 +118,59 @@ func (a *ADot) MonitorFile(path string) error {
 	return nil
 }
 
-func (a *ADot) EnsureClone() error {
+func dirExists(s string) (bool, error) {
+	if stat, err := os.Stat(s); err == nil {
+		if stat.IsDir() {
+			return true, nil
+		} else {
+			return false, errors.New(fmt.Sprintf("path is not a directory %v", s))
+		}
+	}
 
+	return false, nil
+}
+
+func (a *ADot) OpenRepo() (*git.Repository, error) {
+	r, err := git.PlainOpen(a.GitPath)
+	if err != nil {
+		return nil, errors.Wrapf(err, "pull %v", a.GitPath)
+	}
+
+	return r, nil
+}
+
+func (a *ADot) Worktree() (*git.Worktree, error) {
+	r, err := a.OpenRepo()
+	if err != nil {
+		return nil, errors.Wrap(err, "open repo")
+	}
+
+	w, err := r.Worktree()
+	if err != nil {
+		return nil, errors.Wrap(err, "worktree")
+	}
+
+	return w, nil
 }
 
 func (a *ADot) Clone() error {
+	_, err := git.PlainClone(a.GitPath, false, &git.CloneOptions{
+		URL: a.GitRepo,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "cloning %v to %v", a.GitRepo, a.GitPath)
+	}
 
+	return nil
 }
 
-
 func (a *ADot) Pull() error {
-	a.git("pull")
+	w, err := a.Worktree()
+	if err != nil {
+		return errors.Wrap(err, "worktree")
+	}
+
+	return w.Pull(&git.PullOptions{RemoteName: "origin"})
 }
 
 func (a *ADot) Commit() error {
