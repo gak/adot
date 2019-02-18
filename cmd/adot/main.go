@@ -8,9 +8,11 @@ import (
 )
 
 type Arg struct {
-	Init string `cmd`
-	Push string `cmd`
-	Pull string `cmd`
+	Init struct{
+		URL string `arg`
+	} `cmd`
+	Push struct{} `cmd`
+	Pull struct{} `cmd`
 }
 
 func main() {
@@ -19,19 +21,20 @@ func main() {
 	a := &adot.ADot{}
 
 	if err := a.Defaults(); err != nil {
-		panic(err)
+		report(err)
 	}
 
-	err := execute(a, ctx)
+	err := execute(a, ctx, &arg)
 	if err != nil {
-		panic(err)
+		report(err)
 	}
 }
-func execute(a *adot.ADot, ctx *kong.Context) error {
+
+func execute(a *adot.ADot, ctx *kong.Context, arg *Arg) error {
 	cmd := ctx.Command()
 	switch cmd {
-	case "init":
-		return a.Init()
+	case "init <url>":
+		return a.Init(arg.Init.URL)
 	case "push":
 		return a.Push()
 	case "pull":
@@ -39,4 +42,8 @@ func execute(a *adot.ADot, ctx *kong.Context) error {
 	default:
 		return errors.New(fmt.Sprintf("unhandled command: %v", cmd))
 	}
+}
+
+func report(err error) {
+	fmt.Printf("%+v\n", err)
 }

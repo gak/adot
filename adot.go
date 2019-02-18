@@ -19,7 +19,7 @@ type ADot struct {
 	ConfigPath string
 
 	// The URL of the git repo that stores the tracked dotfiles.
-	GitRepo string
+	GitURL string
 
 	// The repo remote to push/pull.
 	GitRemote string
@@ -73,7 +73,9 @@ func (a *ADot) Service() error {
 	return nil
 }
 
-func (a *ADot) Init() error {
+func (a *ADot) Init(url string) error {
+	a.GitURL = url
+
 	if err := a.Clone(); err != nil {
 		return errors.Wrap(err, "clone")
 	}
@@ -97,7 +99,7 @@ func (a *ADot) Defaults() error {
 	a.ConfigPath = expand(a.ConfigPath)
 
 	if a.GitPath == "" {
-		a.GitPath = path.Join(filepath.Base(a.ConfigPath), ".adot-git")
+		a.GitPath = path.Join(filepath.Dir(a.ConfigPath), ".adot-git")
 	}
 
 	if a.GitBranch == "" {
@@ -116,6 +118,10 @@ func (a *ADot) Iterate(fun func(string) error) error {
 	scanner := bufio.NewScanner(fp)
 	for scanner.Scan() {
 		file := scanner.Text()
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
 		err := fun(file)
 		if err != nil {
 			return errors.Wrap(err, file)
@@ -133,6 +139,21 @@ func (a *ADot) MonitorFile(path string) error {
 	a.files = append(a.files, path)
 
 	return nil
+}
+
+// https://stackoverflow.com/a/12518877
+func fileExists(s string) (bool, error) {
+	if _, err := os.Stat(s); err == nil {
+		return true, nil
+
+	} else if os.IsNotExist(err) {
+		// path/to/whatever does *not* exist
+		return false, nil
+
+	} else {
+		// Schrodinger: file may or may not exist. See err for details.
+		return false, err
+	}
 }
 
 func dirExists(s string) (bool, error) {
@@ -196,10 +217,10 @@ func (a *ADot) Worktree() (*git.Worktree, error) {
 
 func (a *ADot) Clone() error {
 	_, err := git.PlainClone(a.GitPath, false, &git.CloneOptions{
-		URL: a.GitRepo,
+		URL: a.GitURL,
 	})
 	if err != nil {
-		return errors.Wrapf(err, "cloning %v to %v", a.GitRepo, a.GitPath)
+		return errors.Wrapf(err, "cloning %v to %v", a.GitURL, a.GitPath)
 	}
 
 	return nil
@@ -218,11 +239,11 @@ func (a *ADot) Pull() error {
 }
 
 func (a *ADot) Commit() error {
-
+	return nil
 }
 
 func (a *ADot) Push() error {
-
+	return nil
 }
 
 // Load copies files from the repository to the home directory.
@@ -244,16 +265,31 @@ func (a *ADot) Load() error {
 
 // TODO: Make a backup
 func (a *ADot) LoadFile(p string) error {
-	return copy(path.Join(a.GitPath, p), path.Join(expand("~"), p))
+	src := path.Join(a.GitPath, p)
+	dst := path.Join(expand("~"), p)
+
+	hasSrc, err := fileExists(src)
+	if err != nil {
+		return errors.Wrap(err, "file exists check")
+	}
+
+	if !hasSrc {
+		fmt.Printf("%v doesn't exist in repo, skipping.\n", p)
+		return nil
+	}
+
+	return copy(src, dst)
 }
 
 // Save copies files from the home directory to the repository.
 func (a *ADot) Save() error {
-
+	return nil
 }
 
 func (a *ADot) Monitor() error {
 	fmt.Printf("Monitoring %d files in %v based on %v", len(a.files), a.ScanPath, a.ConfigPath)
+
+	return nil
 }
 
 // https://stackoverflow.com/a/17617721
