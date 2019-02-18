@@ -24,11 +24,14 @@ type ADot struct {
 	// The repo remote to push/pull.
 	GitRemote string
 
-	// The branch of the repo to track. Defaults to master.
+	// The branch of the repo to track. Prepare to master.
 	GitBranch string
 
-	// The check out path. Defaults to ~/.adot-git
+	// The check out path. Prepare to ~/.adot-git
 	GitPath string
+
+	repo *git.Repository
+	work *git.Worktree
 
 	files []string
 }
@@ -80,31 +83,46 @@ func (a *ADot) Init(url string) error {
 		return errors.Wrap(err, "clone")
 	}
 
-	if err := a.Load(); err != nil {
+	if err := a.Track(); err != nil {
+		return errors.Wrap(err, "could not open repo")
+	}
+
+	if err := a.Load(true); err != nil {
 		return errors.Wrap(err, "pull")
 	}
 
 	return nil
 }
 
-func (a *ADot) Defaults() error {
+func (a *ADot) Prepare() error {
 	if a.ScanPath == "" {
 		a.ScanPath = "~"
 	}
 	a.ScanPath = expand(a.ScanPath)
 
 	if a.ConfigPath == "" {
-		a.ConfigPath = path.Join(a.ScanPath, ".adot")
+		a.ConfigPath = filepath.Join(a.ScanPath, ".adot")
 	}
 	a.ConfigPath = expand(a.ConfigPath)
 
 	if a.GitPath == "" {
-		a.GitPath = path.Join(filepath.Dir(a.ConfigPath), ".adot-git")
+		a.GitPath = filepath.Join(filepath.Dir(a.ConfigPath), ".adot-git")
 	}
 
 	if a.GitBranch == "" {
 		a.GitBranch = "master"
 	}
+
+	return nil
+}
+
+func (a *ADot) Track() error {
+	repo, work, err := a.Worktree()
+	if err != nil {
+		return err
+	}
+	a.repo = repo
+	a.work = work
 
 	return nil
 }
@@ -201,18 +219,18 @@ func (a *ADot) OpenRepo() (*git.Repository, error) {
 	return r, nil
 }
 
-func (a *ADot) Worktree() (*git.Worktree, error) {
+func (a *ADot) Worktree() (*git.Repository, *git.Worktree, error) {
 	r, err := a.OpenRepo()
 	if err != nil {
-		return nil, errors.Wrap(err, "open repo")
+		return nil, nil, errors.Wrap(err, "open repo")
 	}
 
 	w, err := r.Worktree()
 	if err != nil {
-		return nil, errors.Wrap(err, "worktree")
+		return nil, nil, errors.Wrap(err, "worktree")
 	}
 
-	return w, nil
+	return r, w, nil
 }
 
 func (a *ADot) Clone() error {
@@ -227,12 +245,7 @@ func (a *ADot) Clone() error {
 }
 
 func (a *ADot) Pull() error {
-	w, err := a.Worktree()
-	if err != nil {
-		return errors.Wrap(err, "worktree")
-	}
-
-	return w.Pull(&git.PullOptions{
+	return a.work.Pull(&git.PullOptions{
 		RemoteName:    a.GitRemote,
 		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
 	})
@@ -247,14 +260,14 @@ func (a *ADot) Push() error {
 }
 
 // Load copies files from the repository to the home directory.
-func (a *ADot) Load() error {
+func (a *ADot) Load(backup bool) error {
 	// Bootstrap the inclusive files to know what to look for.
-	if err := a.LoadFile(".adot"); err != nil {
+	if err := a.LoadFile(".adot", backup); err != nil {
 		return err
 	}
 
 	err := a.Iterate(func(s string) error {
-		return a.LoadFile(s)
+		return a.LoadFile(s, backup)
 	})
 	if err != nil {
 		return errors.Wrap(err, "iterate")
@@ -263,8 +276,7 @@ func (a *ADot) Load() error {
 	return nil
 }
 
-// TODO: Make a backup
-func (a *ADot) LoadFile(p string) error {
+func (a *ADot) LoadFile(p string, backup bool) error {
 	src := path.Join(a.GitPath, p)
 	dst := path.Join(expand("~"), p)
 
@@ -276,6 +288,20 @@ func (a *ADot) LoadFile(p string) error {
 	if !hasSrc {
 		fmt.Printf("%v doesn't exist in repo, skipping.\n", p)
 		return nil
+	}
+
+	hasDst, err := fileExists(dst)
+	if hasDst && backup {
+		head, err := a.repo.Head()
+		if err != nil {
+			return errors.Wrapf(err, "head failed")
+		}
+		hash := head.Hash().String()
+
+		err = copy(dst, filepath.Join(dst+".adot."+hash))
+		if err != nil {
+			return errors.Wrapf(err, "creating backup of %v", dst)
+		}
 	}
 
 	return copy(src, dst)

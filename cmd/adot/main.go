@@ -20,7 +20,7 @@ func main() {
 	ctx := kong.Parse(&arg)
 	a := &adot.ADot{}
 
-	if err := a.Defaults(); err != nil {
+	if err := a.Prepare(); err != nil {
 		report(err)
 	}
 
