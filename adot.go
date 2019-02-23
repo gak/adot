@@ -37,37 +37,7 @@ type ADot struct {
 }
 
 func (a *ADot) Service() error {
-
 	/*
-
-	adot init
-
-	 - clone
-	 - if file exists, rename
-	 - copy file down
-
-	adot push
-
-	 - check repo state to be clean
-	 - iterate
-	   - if file is different to repo, copy to repo
-	 - if there are changes, commit, push
-	 - if there's a conflict do a pull rebase
-	 - otherwise let the user handle the conflict
-
-	adot pull
-
-	 - check repo state to be clean
-	 - git pull
-	 - iterate
-	   - if any files are different, backup/copy.
-
-	adot service
-
-	 - every 5 minutes
-	 - adot push
-	 - adot pull
-
 	*/
 
 	//a.Monitor()
