@@ -3,6 +3,7 @@ package adot
 import (
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 func (a *ADot) openRepo() (*git.Repository, error) {
@@ -42,5 +43,23 @@ func (a *ADot) clone() error {
 func (a *ADot) commit(p string) error {
 	panic("no commit")
 	return nil
+}
+
+func (a *ADot) track() error {
+	repo, work, err := a.worktree()
+	if err != nil {
+		return err
+	}
+	a.repo = repo
+	a.work = work
+
+	return nil
+}
+
+func (a *ADot) pull() error {
+	return a.work.Pull(&git.PullOptions{
+		RemoteName:    a.GitRemote,
+		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
+	})
 }
 

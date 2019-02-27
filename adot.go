@@ -1,14 +1,10 @@
 package adot
 
 import (
-	"bufio"
-	"fmt"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
-	"gopkg.in/src-d/go-git.v4/plumbing"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type ADot struct {
@@ -110,14 +106,12 @@ func (a *ADot) Add(p string) error {
 
 func (a *ADot) Remove(p string) error {
 	panic("no remove")
-	return nil
 }
 
-func (a *ADot) Pull() error {
-	return a.work.Pull(&git.PullOptions{
-		RemoteName:    a.GitRemote,
-		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
-	})
+func (a *ADot) MonitorFile(path string) error {
+	a.files = append(a.files, path)
+
+	return nil
 }
 
 func (a *ADot) Push() error {
@@ -125,51 +119,8 @@ func (a *ADot) Push() error {
 	return nil
 }
 
-// Save copies files from the home directory to the repository.
-func (a *ADot) Save() error {
-	return nil
-}
-
-func (a *ADot) Monitor() error {
-	fmt.Printf("Monitoring %d files in %v based on %v", len(a.files), a.WorkPath, a.ConfigPath)
-
-	return nil
-}
-
-func (a *ADot) track() error {
-	repo, work, err := a.worktree()
-	if err != nil {
-		return err
-	}
-	a.repo = repo
-	a.work = work
-
-	return nil
-}
-
-func (a *ADot) iterate(fun func(string) error) error {
-	fp, err := os.Open(a.ConfigPath)
-	if err != nil {
-		return errors.Wrapf(err, "Could not open %v", a.ConfigPath)
-	}
-
-	scanner := bufio.NewScanner(fp)
-	for scanner.Scan() {
-		file := scanner.Text()
-		file = strings.TrimSpace(file)
-		if file == "" {
-			continue
-		}
-		err := fun(file)
-		if err != nil {
-			return errors.Wrap(err, file)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return errors.Wrapf(err, "scanner error")
-	}
-
+func (a *ADot) Pull() error {
+	panic("no pul")
 	return nil
 }
 

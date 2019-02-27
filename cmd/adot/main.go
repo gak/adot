@@ -8,20 +8,20 @@ import (
 )
 
 type Arg struct {
-	Init struct{
+	New struct {
 		URL string `arg`
-	} `cmd`
-	Existing struct{
+	} `cmd help:"Create a new adot repository and push it."`
+	Existing struct {
 		URL string `arg`
-	} `cmd`
-	Add struct{
+	} `cmd help:"Clone an adot repository and load in the files."`
+	Add struct {
 		Path string `arg`
-	} `cmd`
-	Remove struct{
+	} `cmd help:"Add a file to be tracked by adot."`
+	Rm struct {
 		Path string `arg`
-	} `cmd`
-	Push struct{} `cmd`
-	Pull struct{} `cmd`
+	} `cmd help:"Remove a file from the adot repository. This will not remove the file from your home directory."`
+	Push struct{} `cmd help:"Commit and push any changed files from your home directory."`
+	Pull struct{} `cmd help:"Pull the latest repository and load in all the files."`
 }
 
 func main() {
@@ -43,13 +43,13 @@ func execute(a *adot.ADot, ctx *kong.Context, arg *Arg) error {
 	cmd := ctx.Command()
 	switch cmd {
 	case "new <url>":
-		return a.InitNew(arg.Init.URL)
+		return a.InitNew(arg.New.URL)
 	case "existing <url>":
-		return a.InitExisting(arg.Init.URL)
+		return a.InitExisting(arg.Existing.URL)
 	case "add":
 		return a.Add(arg.Add.Path)
 	case "rm":
-		return a.Remove(arg.Remove.Path)
+		return a.Remove(arg.Rm.Path)
 	case "push":
 		return a.Push()
 	case "pull":

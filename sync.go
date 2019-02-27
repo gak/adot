@@ -1,11 +1,28 @@
 package adot
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/pkg/errors"
+	"os"
 	"path"
 	"path/filepath"
+	"strings"
 )
+
+func (a *ADot) configAppend(path string) error {
+	fp, err := os.OpenFile(a.ConfigPath, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return errors.Wrapf(err, "could not open config file")
+	}
+
+	_, err = fmt.Fprintf(fp, path+"\n")
+	if err != nil {
+		return errors.Wrapf(err, "could not write to file %v", a.ConfigPath)
+	}
+
+	return nil
+}
 
 func (a *ADot) upFile(p string) error {
 	src := path.Join(a.WorkPath, p)
@@ -66,3 +83,28 @@ func (a *ADot) down(backup bool) error {
 	return nil
 }
 
+func (a *ADot) iterate(fun func(string) error) error {
+	fp, err := os.Open(a.ConfigPath)
+	if err != nil {
+		return errors.Wrapf(err, "Could not open %v", a.ConfigPath)
+	}
+
+	scanner := bufio.NewScanner(fp)
+	for scanner.Scan() {
+		file := scanner.Text()
+		file = strings.TrimSpace(file)
+		if file == "" {
+			continue
+		}
+		err := fun(file)
+		if err != nil {
+			return errors.Wrap(err, file)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return errors.Wrapf(err, "scanner error")
+	}
+
+	return nil
+}

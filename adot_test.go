@@ -4,22 +4,22 @@ import (
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 var tmp = "tmp"
-var homeA = tmp + "/home"
-var homeB = tmp + "/home"
-var remote = tmp + "/remote"
+var homeA = filepath.Join(tmp, "/home-alice")
+var homeB = filepath.Join(tmp, "/home-bob")
+var remote = filepath.Join(tmp, "/remote")
 var fileZ = "testing"
 
 func TestAll(t *testing.T) {
-	require.NoError(t, os.RemoveAll(homeA))
-	require.NoError(t, os.Mkdir(homeA, 700))
-	require.NoError(t, os.RemoveAll(homeB))
-	require.NoError(t, os.Mkdir(homeB, 700))
-	require.NoError(t, os.RemoveAll(remote))
-	require.NoError(t, os.Mkdir(remote, 700))
+	require.NoError(t, os.RemoveAll(tmp))
+	require.NoError(t, os.Mkdir(tmp, 0700))
+	require.NoError(t, os.Mkdir(homeA, 0700))
+	require.NoError(t, os.Mkdir(homeB, 0700))
+	require.NoError(t, os.Mkdir(remote, 0700))
 
 	a := ADot{}
 	require.NoError(t, os.Chdir(homeA))
