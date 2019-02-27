@@ -11,6 +11,15 @@ type Arg struct {
 	Init struct{
 		URL string `arg`
 	} `cmd`
+	Existing struct{
+		URL string `arg`
+	} `cmd`
+	Add struct{
+		Path string `arg`
+	} `cmd`
+	Remove struct{
+		Path string `arg`
+	} `cmd`
 	Push struct{} `cmd`
 	Pull struct{} `cmd`
 }
@@ -33,8 +42,14 @@ func main() {
 func execute(a *adot.ADot, ctx *kong.Context, arg *Arg) error {
 	cmd := ctx.Command()
 	switch cmd {
-	case "init <url>":
-		return a.Init(arg.Init.URL)
+	case "new <url>":
+		return a.InitNew(arg.Init.URL)
+	case "existing <url>":
+		return a.InitExisting(arg.Init.URL)
+	case "add":
+		return a.Add(arg.Add.Path)
+	case "rm":
+		return a.Remove(arg.Remove.Path)
 	case "push":
 		return a.Push()
 	case "pull":

@@ -6,16 +6,13 @@ import (
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
-	"io"
 	"os"
-	"os/user"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
 type ADot struct {
-	ScanPath   string
+	WorkPath   string
 	ConfigPath string
 
 	// The URL of the git repo that stores the tracked dotfiles.
@@ -24,7 +21,7 @@ type ADot struct {
 	// The repo remote to push/pull.
 	GitRemote string
 
-	// The branch of the repo to track. Prepare to master.
+	// The branch of the repo to track.
 	GitBranch string
 
 	// The check out path. Prepare to ~/.adot-git
@@ -37,41 +34,53 @@ type ADot struct {
 }
 
 func (a *ADot) Service() error {
-	/*
-	*/
+	return nil
+}
 
-	//a.Monitor()
-	//a.EnsureClone()
+func (a *ADot) InitNew(url string) error {
+	if err := a.Prepare(); err != nil {
+		return errors.Wrap(err, "could not prepare configuration")
+	}
+
+	a.GitURL = url
+	repo, err := git.PlainInit(a.GitPath, false)
+	if err != nil {
+		return errors.Wrap(err, "could not initiate repo")
+	}
+	a.repo = repo
 
 	return nil
 }
 
-func (a *ADot) Init(url string) error {
+func (a *ADot) InitExisting(url string) error {
+	if err := a.Prepare(); err != nil {
+		return errors.Wrap(err, "could not prepare configuration")
+	}
+
 	a.GitURL = url
 
-	if err := a.Clone(); err != nil {
+	if err := a.clone(); err != nil {
 		return errors.Wrap(err, "clone")
 	}
-
-	if err := a.Track(); err != nil {
+	if err := a.track(); err != nil {
 		return errors.Wrap(err, "could not open repo")
 	}
-
-	if err := a.Load(true); err != nil {
-		return errors.Wrap(err, "pull")
+	if err := a.down(true); err != nil {
+		return errors.Wrap(err, "load")
 	}
 
 	return nil
 }
 
 func (a *ADot) Prepare() error {
-	if a.ScanPath == "" {
-		a.ScanPath = "~"
+	var err error
+	a.WorkPath, err = os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "could not determine cwd")
 	}
-	a.ScanPath = expand(a.ScanPath)
 
 	if a.ConfigPath == "" {
-		a.ConfigPath = filepath.Join(a.ScanPath, ".adot")
+		a.ConfigPath = filepath.Join(a.WorkPath, ".adot")
 	}
 	a.ConfigPath = expand(a.ConfigPath)
 
@@ -86,8 +95,49 @@ func (a *ADot) Prepare() error {
 	return nil
 }
 
-func (a *ADot) Track() error {
-	repo, work, err := a.Worktree()
+func (a *ADot) Add(p string) error {
+	if err := a.upFile(p); err != nil {
+		return errors.Wrapf(err, "could not up file %s", p)
+	}
+	if err := a.commit(p); err != nil {
+		return errors.Wrapf(err, "could not commit %s", p)
+	}
+	if err := a.Push(); err != nil {
+		return errors.Wrapf(err, "could not push %s", p)
+	}
+	return nil
+}
+
+func (a *ADot) Remove(p string) error {
+	panic("no remove")
+	return nil
+}
+
+func (a *ADot) Pull() error {
+	return a.work.Pull(&git.PullOptions{
+		RemoteName:    a.GitRemote,
+		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
+	})
+}
+
+func (a *ADot) Push() error {
+	panic("no push")
+	return nil
+}
+
+// Save copies files from the home directory to the repository.
+func (a *ADot) Save() error {
+	return nil
+}
+
+func (a *ADot) Monitor() error {
+	fmt.Printf("Monitoring %d files in %v based on %v", len(a.files), a.WorkPath, a.ConfigPath)
+
+	return nil
+}
+
+func (a *ADot) track() error {
+	repo, work, err := a.worktree()
 	if err != nil {
 		return err
 	}
@@ -97,7 +147,7 @@ func (a *ADot) Track() error {
 	return nil
 }
 
-func (a *ADot) Iterate(fun func(string) error) error {
+func (a *ADot) iterate(fun func(string) error) error {
 	fp, err := os.Open(a.ConfigPath)
 	if err != nil {
 		return errors.Wrapf(err, "Could not open %v", a.ConfigPath)
@@ -123,184 +173,8 @@ func (a *ADot) Iterate(fun func(string) error) error {
 	return nil
 }
 
-func (a *ADot) MonitorFile(path string) error {
+func (a *ADot) monitorFile(path string) error {
 	a.files = append(a.files, path)
 
 	return nil
-}
-
-// https://stackoverflow.com/a/12518877
-func fileExists(s string) (bool, error) {
-	if _, err := os.Stat(s); err == nil {
-		return true, nil
-
-	} else if os.IsNotExist(err) {
-		// path/to/whatever does *not* exist
-		return false, nil
-
-	} else {
-		// Schrodinger: file may or may not exist. See err for details.
-		return false, err
-	}
-}
-
-func dirExists(s string) (bool, error) {
-	if stat, err := os.Stat(s); err == nil {
-		if stat.IsDir() {
-			return true, nil
-		} else {
-			return false, errors.New(fmt.Sprintf("path is not a directory %v", s))
-		}
-	}
-
-	return false, nil
-}
-
-func copy(src, dst string) error {
-	fmt.Println("copy", src, dst)
-	return nil
-
-	from, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer from.Close()
-
-	to, err := os.OpenFile(dst, os.O_RDWR|os.O_CREATE, 0666)
-	if err != nil {
-		return err
-	}
-	defer to.Close()
-
-	_, err = io.Copy(to, from)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (a *ADot) OpenRepo() (*git.Repository, error) {
-	r, err := git.PlainOpen(a.GitPath)
-	if err != nil {
-		return nil, errors.Wrapf(err, "pull %v", a.GitPath)
-	}
-
-	return r, nil
-}
-
-func (a *ADot) Worktree() (*git.Repository, *git.Worktree, error) {
-	r, err := a.OpenRepo()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "open repo")
-	}
-
-	w, err := r.Worktree()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "worktree")
-	}
-
-	return r, w, nil
-}
-
-func (a *ADot) Clone() error {
-	_, err := git.PlainClone(a.GitPath, false, &git.CloneOptions{
-		URL: a.GitURL,
-	})
-	if err != nil {
-		return errors.Wrapf(err, "cloning %v to %v", a.GitURL, a.GitPath)
-	}
-
-	return nil
-}
-
-func (a *ADot) Pull() error {
-	return a.work.Pull(&git.PullOptions{
-		RemoteName:    a.GitRemote,
-		ReferenceName: plumbing.NewBranchReferenceName(a.GitBranch),
-	})
-}
-
-func (a *ADot) Commit() error {
-	return nil
-}
-
-func (a *ADot) Push() error {
-	return nil
-}
-
-// Load copies files from the repository to the home directory.
-func (a *ADot) Load(backup bool) error {
-	// Bootstrap the inclusive files to know what to look for.
-	if err := a.LoadFile(".adot", backup); err != nil {
-		return err
-	}
-
-	err := a.Iterate(func(s string) error {
-		return a.LoadFile(s, backup)
-	})
-	if err != nil {
-		return errors.Wrap(err, "iterate")
-	}
-
-	return nil
-}
-
-func (a *ADot) LoadFile(p string, backup bool) error {
-	src := path.Join(a.GitPath, p)
-	dst := path.Join(expand("~"), p)
-
-	hasSrc, err := fileExists(src)
-	if err != nil {
-		return errors.Wrap(err, "file exists check")
-	}
-
-	if !hasSrc {
-		fmt.Printf("%v doesn't exist in repo, skipping.\n", p)
-		return nil
-	}
-
-	hasDst, err := fileExists(dst)
-	if hasDst && backup {
-		head, err := a.repo.Head()
-		if err != nil {
-			return errors.Wrapf(err, "head failed")
-		}
-		hash := head.Hash().String()
-
-		err = copy(dst, filepath.Join(dst+".adot."+hash))
-		if err != nil {
-			return errors.Wrapf(err, "creating backup of %v", dst)
-		}
-	}
-
-	return copy(src, dst)
-}
-
-// Save copies files from the home directory to the repository.
-func (a *ADot) Save() error {
-	return nil
-}
-
-func (a *ADot) Monitor() error {
-	fmt.Printf("Monitoring %d files in %v based on %v", len(a.files), a.ScanPath, a.ConfigPath)
-
-	return nil
-}
-
-// https://stackoverflow.com/a/17617721
-func expand(path string) string {
-	usr, _ := user.Current()
-	dir := usr.HomeDir
-
-	if path == "~" {
-		// In case of "~", which won't be caught by the "else if"
-		path = dir
-	} else if strings.HasPrefix(path, "~/") {
-		// Use strings.HasPrefix so we don't match paths like
-		// "/something/~/something/"
-		path = filepath.Join(dir, path[2:])
-	}
-
-	return path
 }
