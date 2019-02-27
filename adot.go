@@ -92,6 +92,9 @@ func (a *ADot) Prepare() error {
 }
 
 func (a *ADot) Add(p string) error {
+	if err := a.configAppend(p); err != nil {
+		return errors.Wrapf(err, "config append %s", p)
+	}
 	if err := a.upFile(p); err != nil {
 		return errors.Wrapf(err, "could not up file %s", p)
 	}

@@ -39,7 +39,6 @@ func dirExists(s string) (bool, error) {
 
 func copy(src, dst string) error {
 	fmt.Println("copy", src, dst)
-	return nil
 
 	from, err := os.Open(src)
 	if err != nil {
