@@ -1,9 +1,12 @@
 package adot
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
+	"time"
 )
 
 func (a *ADot) openRepo() (*git.Repository, error) {
@@ -41,7 +44,24 @@ func (a *ADot) clone() error {
 }
 
 func (a *ADot) commit(p string) error {
-	panic("no commit")
+	hash, err := a.work.Add(p)
+	if err != nil {
+		return errors.Wrapf(err, "could not add to worktree")
+	}
+	fmt.Println(hash)
+
+	hash, err = a.work.Commit("Added " + p, &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "ADot",
+			Email: "adot@slowchop.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return errors.Wrapf(err, "could not commit worktree")
+	}
+	fmt.Println(hash)
+
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package adot
 
 import (
+	"github.com/alecthomas/repr"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
 	"os"
@@ -45,6 +46,26 @@ func (a *ADot) InitNew(url string) error {
 	}
 	a.repo = repo
 
+	if err = a.createConfigFile(); err != nil {
+		return errors.Wrapf(err, "could not add config file %s", a.ConfigPath)
+	}
+	if err = a.Add(a.ConfigPath); err != nil {
+		return errors.Wrapf(err, "could not add config file %s", a.ConfigPath)
+	}
+
+	return nil
+}
+
+func (a *ADot) createConfigFile() error {
+	f, err := os.Create(a.ConfigPath)
+	if err != nil {
+		return errors.Wrapf(err, "could not create %s", a.ConfigPath)
+	}
+
+	if err = f.Close(); err != nil {
+		return errors.Wrapf(err, "could not close %s", a.ConfigPath)
+	}
+
 	return nil
 }
 
@@ -76,9 +97,8 @@ func (a *ADot) Prepare() error {
 	}
 
 	if a.ConfigPath == "" {
-		a.ConfigPath = filepath.Join(a.WorkPath, ".adot")
+		a.ConfigPath = ".adot"
 	}
-	a.ConfigPath = expand(a.ConfigPath)
 
 	if a.GitPath == "" {
 		a.GitPath = filepath.Join(filepath.Dir(a.ConfigPath), ".adot-git")
@@ -88,10 +108,15 @@ func (a *ADot) Prepare() error {
 		a.GitBranch = "master"
 	}
 
+	repr.Println(a)
+
 	return nil
 }
 
 func (a *ADot) Add(p string) error {
+	if err := a.track(); err != nil {
+		return errors.Wrapf(err, "track")
+	}
 	if err := a.configAppend(p); err != nil {
 		return errors.Wrapf(err, "config append %s", p)
 	}
