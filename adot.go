@@ -47,7 +47,7 @@ func (a *ADot) InitNew(url string) error {
 	a.repo = repo
 
 	if err = a.createConfigFile(); err != nil {
-		return errors.Wrapf(err, "could not add config file %s", a.ConfigPath)
+		return errors.Wrapf(err, "could not create config file %s", a.ConfigPath)
 	}
 	if err = a.Add(a.ConfigPath); err != nil {
 		return errors.Wrapf(err, "could not add config file %s", a.ConfigPath)
@@ -143,8 +143,7 @@ func (a *ADot) MonitorFile(path string) error {
 }
 
 func (a *ADot) Push() error {
-	panic("no push")
-	return nil
+	return a.repo.Push(&git.PushOptions{})
 }
 
 func (a *ADot) Pull() error {

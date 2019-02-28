@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/object"
 	"time"
@@ -72,6 +73,14 @@ func (a *ADot) track() error {
 	}
 	a.repo = repo
 	a.work = work
+
+	_, err = a.repo.CreateRemote(&config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{a.GitURL},
+	})
+	if err != nil {
+		return errors.Wrapf(err, "could not create remote %v", a.GitURL)
+	}
 
 	return nil
 }
