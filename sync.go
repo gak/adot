@@ -25,7 +25,7 @@ func (a *ADot) configAppend(path string) error {
 
 func (a *ADot) upFile(p string) error {
 	src := filepath.Join(a.WorkPath, p)
-	dst := filepath.Join(a.WorkPath, a.GitPath, p)
+	dst := filepath.Join(a.GitPath, p)
 
 	if err := copy(src, dst); err != nil {
 		return errors.Wrapf(err, "could not copy %s to %s", src, dst)
@@ -35,7 +35,7 @@ func (a *ADot) upFile(p string) error {
 }
 
 func (a *ADot) downFile(p string, backup bool) error {
-	src := filepath.Join(a.WorkPath, a.GitPath, p)
+	src := filepath.Join(a.GitPath, p)
 	dst := filepath.Join(a.WorkPath, p)
 
 	hasSrc, err := fileExists(src)

@@ -102,6 +102,10 @@ func (a *ADot) Prepare() error {
 
 	if a.GitPath == "" {
 		a.GitPath = filepath.Join(filepath.Dir(a.ConfigPath), ".adot-git")
+		a.GitPath, err = filepath.Abs(a.GitPath)
+		if err != nil {
+			return errors.Wrapf(err, "can't convert to abs path")
+		}
 	}
 
 	if a.GitBranch == "" {
@@ -143,7 +147,14 @@ func (a *ADot) MonitorFile(path string) error {
 }
 
 func (a *ADot) Push() error {
-	return a.repo.Push(&git.PushOptions{})
+	err := a.repo.Push(&git.PushOptions{
+		//RemoteName: "origin",
+		//RefSpecs: []config.RefSpec{"refs/tags/*:refs/tags/*"},
+	})
+	if err != nil {
+		return errors.Wrapf(err, "could not push to %v", a.GitURL)
+	}
+	return nil
 }
 
 func (a *ADot) Pull() error {
